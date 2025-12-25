@@ -1,321 +1,45 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>GALAXY // 10^6</title>
-<style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden}
-  canvas{display:block;width:100%;height:100%}
-  .hud{
-    position:fixed; inset:16px 16px auto auto;
-    padding:10px 12px; border-radius:14px;
-    border:1px solid rgba(255,255,255,.12);
-    background:rgba(0,0,0,.35); color:rgba(255,255,255,.8);
-    font:12px/1.2 system-ui; letter-spacing:.14em; user-select:none;
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>animation-test</title>
+  <style>
+    :root{color-scheme:dark;}
+    body{margin:0;font-family:system-ui,Segoe UI,Meiryo,sans-serif;background:#0b0f14;color:#e6edf3;}
+    header{padding:16px 18px;border-bottom:1px solid #223044;display:flex;gap:12px;align-items:center;}
+    header h1{margin:0;font-size:18px;font-weight:700;}
+    main{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 56px);}
+    nav{border-right:1px solid #223044;padding:14px;}
+    nav a{display:block;padding:10px 10px;margin:6px 0;border:1px solid #223044;border-radius:10px;text-decoration:none;color:#e6edf3;}
+    nav a:hover{background:#0f1722;}
+    .viewer{position:relative;}
+    iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;}
+    .hint{opacity:.7;font-size:12px;margin-top:10px;line-height:1.5}
+    .pill{margin-left:auto;opacity:.7;font-size:12px;border:1px solid #223044;border-radius:999px;padding:6px 10px}
+  </style>
 </head>
 <body>
-<canvas id="gl"></canvas>
-<div class="hud">GALAXY 10^6 / SHADER</div>
+  <header>
+    <h1>animation-test</h1>
+    <div class="pill">Hub / WebGL Shader</div>
+  </header>
 
-<script>
-/* ==========================================================
-   GALAXY 10^6 (WebGL1, single-pass fragment shader)
-   - Spiral galaxy via polar warp + fbm noise
-   - Gravitational lensing (radial distortion)
-   - Hyperspace tunnel (streak field)
-   - Cinematic timeline (zoom-in -> warp -> zoom-out)
-   ========================================================== */
+  <main>
+    <nav>
+      <a href="galaxy.html" target="view">GALAXY 10^6</a>
+      <a href="noise.html"  target="view">NOISE</a>
+      <a href="wave.html"   target="view">WAVE</a>
 
-const canvas = document.getElementById("gl");
-const gl = canvas.getContext("webgl", { antialias:false, alpha:false, preserveDrawingBuffer:false });
-if(!gl){ alert("WebGL not supported"); throw new Error("WebGL not supported"); }
+      <div class="hint">
+        - 左のリンクで切替<br/>
+        - 画面クリックでフルスクリーン可（対応ブラウザ）
+      </div>
+    </nav>
 
-function resize(){
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width  = Math.floor(innerWidth * dpr);
-  canvas.height = Math.floor(innerHeight * dpr);
-  gl.viewport(0,0,canvas.width,canvas.height);
-}
-addEventListener("resize", resize);
-resize();
-
-const VERT = `
-attribute vec2 a_pos;
-varying vec2 v_uv;
-void main(){
-  v_uv = a_pos*0.5 + 0.5;
-  gl_Position = vec4(a_pos, 0.0, 1.0);
-}
-`;
-
-const FRAG = `
-precision highp float;
-varying vec2 v_uv;
-uniform vec2  u_res;
-uniform float u_time;
-
-/* ---------- helpers ---------- */
-float hash21(vec2 p){
-  p = fract(p*vec2(123.34, 456.21));
-  p += dot(p, p+45.32);
-  return fract(p.x*p.y);
-}
-
-float noise(vec2 p){
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  float a = hash21(i);
-  float b = hash21(i+vec2(1,0));
-  float c = hash21(i+vec2(0,1));
-  float d = hash21(i+vec2(1,1));
-  vec2 u = f*f*(3.0-2.0*f);
-  return mix(a,b,u.x) + (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y;
-}
-
-float fbm(vec2 p){
-  float v = 0.0;
-  float a = 0.5;
-  mat2 m = mat2(1.6,1.2,-1.2,1.6);
-  for(int i=0;i<5;i++){
-    v += a*noise(p);
-    p = m*p;
-    a *= 0.5;
-  }
-  return v;
-}
-
-vec3 palette(float t){
-  // cinematic cool->warm palette
-  vec3 a = vec3(0.05,0.08,0.14);
-  vec3 b = vec3(0.25,0.45,0.85);
-  vec3 c = vec3(0.95,0.80,0.35);
-  vec3 d = vec3(0.90,0.30,0.20);
-  t = clamp(t,0.0,1.0);
-  vec3 col = mix(a,b,smoothstep(0.0,0.55,t));
-  col = mix(col,c,smoothstep(0.45,0.85,t));
-  col = mix(col,d,smoothstep(0.80,1.0,t));
-  return col;
-}
-
-float easeInOut(float x){
-  return (x<0.5) ? 4.0*x*x*x : 1.0 - pow(-2.0*x+2.0,3.0)/2.0;
-}
-
-/* ---------- timeline ---------- */
-void timeline(in float T, out float zoom, out float warpI, out float pass, out float flash){
-  float LOOP = 26.0;
-  float t = mod(T, LOOP);
-
-  float zin  = clamp(t/7.0, 0.0, 1.0);
-  float w    = clamp((t-6.2)/7.2, 0.0, 1.0);
-  float zout = clamp((t-16.0)/8.5, 0.0, 1.0);
-
-  zoom = 1.0 + easeInOut(zin)*6.5 - easeInOut(zout)*5.6;
-  warpI = smoothstep(0.0, 1.0, w);
-
-  // core pass peak (sharp)
-  pass = exp(-pow((t-10.2)/0.55, 2.0));
-  // entry/exit flash peaks
-  float fin  = exp(-pow((t-6.7)/0.20, 2.0));
-  float fout = exp(-pow((t-13.7)/0.28,2.0));
-  flash = clamp(fin+fout, 0.0, 1.0);
-}
-
-/* ---------- galaxy field ---------- */
-vec3 galaxy(vec2 uv, float T, float zoom, float warpI, float pass){
-  // aspect-correct coordinates centered at 0
-  vec2 p = (uv - 0.5);
-  p.x *= u_res.x/u_res.y;
-
-  // subtle camera roll
-  float roll = 0.10*sin(T*0.12) + 0.15*pass;
-  float cs = cos(roll), sn = sin(roll);
-  p = mat2(cs,-sn,sn,cs) * p;
-
-  // apply zoom (camera)
-  p /= zoom;
-
-  // polar
-  float r = length(p) + 1e-6;
-  float a = atan(p.y, p.x);
-
-  // spiral warp
-  float arms = 3.0;
-  float twist = 7.5;
-  float spiral = sin(a*arms + r*twist - T*0.55);
-
-  // lensing / distortion (gravitational)
-  float lens = (warpI*0.85 + pass*1.2);
-  float bend = 1.0 + lens / (1.0 + r*8.0);
-  p *= bend;
-  r = length(p) + 1e-6;
-  a = atan(p.y, p.x);
-
-  // dusty disk + turbulence
-  float disk = exp(-r*3.2);
-  float dust = fbm(p*3.0 + vec2(0.0, T*0.08));
-  float neb  = fbm(p*1.5 + vec2(T*0.04, -T*0.03));
-
-  // arms mask
-  float armMask = smoothstep(-0.2, 0.9, spiral) * smoothstep(1.0, 0.05, r);
-  armMask *= 0.55 + 0.75*dust;
-
-  // star specks (procedural)
-  float g = fbm(p*28.0);
-  float speck = smoothstep(0.93, 1.0, g);
-  speck *= (0.6 + 0.4*hash21(floor(p*220.0)));
-
-  // core glow
-  float core = exp(-r*18.0) * (1.0 + 2.8*pass);
-  float coreHalo = exp(-r*6.0) * (0.25 + 0.9*warpI);
-
-  float intensity = disk*(0.35 + 0.55*neb) + armMask*0.85 + speck*1.5;
-  intensity += core*3.0 + coreHalo;
-
-  // color mapping
-  vec3 col = palette(clamp(intensity*0.65, 0.0, 1.0));
-  // bluish core highlight
-  col += vec3(0.35,0.55,1.0) * core * 0.9;
-  // slight warm dust
-  col += vec3(1.0,0.55,0.25) * armMask * 0.20;
-
-  // fade out galaxy when warp dominates
-  col *= (1.0 - warpI*0.75);
-
-  return col;
-}
-
-/* ---------- hyperspace tunnel ---------- */
-vec3 hyperspace(vec2 uv, float T, float warpI, float pass){
-  vec2 p = uv - 0.5;
-  p.x *= u_res.x/u_res.y;
-
-  float r = length(p) + 1e-6;
-  float a = atan(p.y,p.x);
-
-  // tunnel rings + swirl
-  float swirl = 0.9*sin(a*3.0 + T*1.1) + 0.35*sin(a*9.0 - T*0.8);
-  float rings = sin((1.0/r)*0.9 + T*3.0);
-  float field = 0.5 + 0.5*(0.55*rings + 0.45*swirl);
-
-  // streaks: sample along radial direction (cheap motion blur)
-  vec2 dir = normalize(p);
-  float streak = 0.0;
-  float spd = 0.6 + warpI*2.2 + pass*2.8;
-  for(int i=0;i<10;i++){
-    float k = float(i)/9.0;
-    vec2 q = p - dir * k * (0.18 + 0.55*warpI) * spd;
-    float n = noise(q*18.0 + vec2(T*1.5, -T*1.2));
-    streak += smoothstep(0.78, 1.0, n) * (1.0-k);
-  }
-
-  // center brightness
-  float center = exp(-r*9.0) * (0.25 + 1.6*pass);
-
-  // color: cool neon
-  vec3 col = vec3(0.10,0.22,0.55)*field + vec3(0.85,0.95,1.0)*streak*0.85;
-  col += vec3(0.25,0.55,1.0)*center;
-
-  // vignette
-  col *= smoothstep(1.1, 0.2, r);
-
-  return col * warpI;
-}
-
-/* ---------- post ---------- */
-vec3 vignette(vec3 col, vec2 uv, float k){
-  vec2 p = uv - 0.5;
-  p.x *= u_res.x/u_res.y;
-  float r = length(p);
-  col *= 1.0 - k*smoothstep(0.35, 1.05, r);
-  return col;
-}
-
-void main(){
-  float zoom, warpI, pass, flash;
-  timeline(u_time, zoom, warpI, pass, flash);
-
-  vec2 uv = v_uv;
-
-  // subtle film jitter
-  uv += (vec2(noise(vec2(u_time*6.1, 1.2)), noise(vec2(2.7, u_time*6.7))) - 0.5) * 0.0015;
-
-  vec3 colG = galaxy(uv, u_time, zoom, warpI, pass);
-  vec3 colW = hyperspace(uv, u_time, warpI, pass);
-
-  vec3 col = colG + colW;
-
-  // flash overexposure at entry/exit
-  col += vec3(1.0) * (flash*0.28);
-
-  // mild "bloom-ish" lift (single pass trick)
-  float luma = dot(col, vec3(0.2126,0.7152,0.0722));
-  col += col * smoothstep(0.35, 1.0, luma) * 0.22;
-
-  // cinematic contrast
-  col = pow(col, vec3(0.92));
-  col = vignette(col, uv, 0.55);
-
-  // clamp
-  col = clamp(col, 0.0, 1.0);
-
-  gl_FragColor = vec4(col, 1.0);
-}
-`;
-
-function compile(type, src){
-  const sh = gl.createShader(type);
-  gl.shaderSource(sh, src);
-  gl.compileShader(sh);
-  if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
-    const info = gl.getShaderInfoLog(sh);
-    console.error(info);
-    throw new Error(info);
-  }
-  return sh;
-}
-
-const vs = compile(gl.VERTEX_SHADER, VERT);
-const fs = compile(gl.FRAGMENT_SHADER, FRAG);
-
-const prog = gl.createProgram();
-gl.attachShader(prog, vs);
-gl.attachShader(prog, fs);
-gl.linkProgram(prog);
-if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){
-  const info = gl.getProgramInfoLog(prog);
-  console.error(info);
-  throw new Error(info);
-}
-gl.useProgram(prog);
-
-// full-screen quad
-const buf = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-  -1,-1,  1,-1, -1, 1,
-  -1, 1,  1,-1,  1, 1
-]), gl.STATIC_DRAW);
-
-const aPos = gl.getAttribLocation(prog, "a_pos");
-gl.enableVertexAttribArray(aPos);
-gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-const uRes  = gl.getUniformLocation(prog, "u_res");
-const uTime = gl.getUniformLocation(prog, "u_time");
-
-let t0 = performance.now();
-function frame(now){
-  const t = (now - t0) / 1000;
-  gl.uniform2f(uRes, canvas.width, canvas.height);
-  gl.uniform1f(uTime, t);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-  requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
-</script>
+    <section class="viewer">
+      <iframe name="view" src="galaxy.html" title="viewer"></iframe>
+    </section>
+  </main>
 </body>
 </html>
