@@ -2,122 +2,123 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Galaxy Flythrough</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Galaxy Hyperdrive</title>
 <style>
 html,body{
   margin:0;
   padding:0;
-  background:black;
+  background:#000;
   overflow:hidden;
 }
-canvas{
-  display:block;
-}
+canvas{display:block;}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
 <script>
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
 function resize(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  c.width = innerWidth;
+  c.height = innerHeight;
 }
-window.addEventListener("resize", resize);
+addEventListener("resize",resize);
 resize();
 
-const W = () => canvas.width;
-const H = () => canvas.height;
+const CX=()=>c.width/2;
+const CY=()=>c.height/2;
 
-/* ===== galaxy stars ===== */
-const GALAXY_STARS = 4000;
-const galaxy = [];
-
-for(let i=0;i<GALAXY_STARS;i++){
-  const r = Math.pow(Math.random(),0.5);
-  const a = r * 6 + Math.random()*0.5;
+/* ===== galaxy disk ===== */
+const G = 5000;
+const galaxy=[];
+for(let i=0;i<G;i++){
+  const r=Math.pow(Math.random(),0.4);
+  const arm=Math.floor(Math.random()*3);
   galaxy.push({
     r,
-    a,
-    z: Math.random(),
-    hue: 200 + Math.random()*60
+    a:r*8+arm*2.1+Math.random()*0.4,
+    z:Math.random(),
+    h:180+Math.random()*120
   });
 }
 
-/* ===== flythrough stars ===== */
-const FLY_STARS = 1200;
-const stars = [];
-
-function resetStar(s){
-  s.x = (Math.random()-0.5)*2;
-  s.y = (Math.random()-0.5)*2;
-  s.z = Math.random()*1;
+/* ===== warp stars ===== */
+const S=1600;
+const stars=[];
+function reset(s){
+  s.x=(Math.random()-0.5)*2;
+  s.y=(Math.random()-0.5)*2;
+  s.z=Math.random();
 }
-
-for(let i=0;i<FLY_STARS;i++){
+for(let i=0;i<S;i++){
   const s={};
-  resetStar(s);
+  reset(s);
   stars.push(s);
 }
 
-let t = 0;
+let t=0;
 
 function draw(){
   ctx.fillStyle="rgba(0,0,0,0.25)";
-  ctx.fillRect(0,0,W(),H());
+  ctx.fillRect(0,0,c.width,c.height);
 
-  const cx = W()/2;
-  const cy = H()/2;
+  const time=t%32;
 
-  // ---- timeline ----
-  const zoomIn = Math.min(1, t/8);
-  const fly = Math.max(0, Math.min(1, (t-6)/6));
-  const zoomOut = Math.max(0, Math.min(1, (t-12)/8));
+  // cinematic timeline
+  const zoomIn=Math.min(1,time/6);
+  const warp=Math.max(0,Math.min(1,(time-7)/6));
+  const zoomOut=Math.max(0,Math.min(1,(time-18)/8));
 
-  const zoom = 1 + zoomIn*4 - zoomOut*3;
+  const zoom=1+zoomIn*6-zoomOut*5;
+  const lens=warp*warp*0.6;
 
   ctx.save();
-  ctx.translate(cx,cy);
+  ctx.translate(CX(),CY());
   ctx.scale(zoom,zoom);
 
   /* ===== galaxy ===== */
   galaxy.forEach(s=>{
-    const angle = s.a + t*0.05;
-    const r = s.r * Math.min(W(),H())*0.45;
-    const x = Math.cos(angle)*r;
-    const y = Math.sin(angle)*r;
+    const ang=s.a+t*0.08;
+    const r=s.r*Math.min(c.width,c.height)*0.48;
+    let x=Math.cos(ang)*r;
+    let y=Math.sin(ang)*r;
 
-    ctx.fillStyle=`hsla(${s.hue},100%,70%,${1-fly})`;
-    ctx.fillRect(x,y,1.2,1.2);
+    // gravitational lens
+    const d=Math.sqrt(x*x+y*y)+0.001;
+    const f=1+lens/(d*0.02);
+    x*=f; y*=f;
+
+    ctx.fillStyle=`hsla(${s.h},100%,70%,${1-warp})`;
+    ctx.fillRect(x,y,1.1,1.1);
   });
-
   ctx.restore();
 
-  /* ===== star flythrough ===== */
-  if(fly>0){
+  /* ===== hyperspace ===== */
+  if(warp>0){
     stars.forEach(s=>{
-      s.z -= 0.02 * fly;
-      if(s.z<=0.01) resetStar(s);
+      s.z-=0.035*warp;
+      if(s.z<0.02)reset(s);
 
-      const x = cx + s.x/s.z * cx;
-      const y = cy + s.y/s.z * cy;
-      const r = (1-s.z)*2.2;
+      const x=CX()+s.x/s.z*CX();
+      const y=CY()+s.y/s.z*CY();
+      const l=(1-s.z)*12*warp;
 
-      ctx.fillStyle="white";
-      ctx.fillRect(x,y,r,r);
+      ctx.strokeStyle="white";
+      ctx.beginPath();
+      ctx.moveTo(x,y);
+      ctx.lineTo(x-s.x*l,y-s.y*l);
+      ctx.stroke();
     });
   }
 
-  t += 0.016;
+  t+=0.016;
   requestAnimationFrame(draw);
 }
 
-ctx.fillStyle="black";
-ctx.fillRect(0,0,W(),H());
+ctx.fillStyle="#000";
+ctx.fillRect(0,0,c.width,c.height);
 draw();
 </script>
 </body>
