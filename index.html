@@ -1,136 +1,128 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>VGID Characteristics</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Animation Test</title>
 
   <style>
-    :root{
-      --bg:#0b0f14;
-      --grid: rgba(0,180,255,0.08);
-      --glow: rgba(0,180,255,0.18);
-      --text:#e6f1ff;
-      --sub:#9ecfff;
-      --footer:#5f7890;
+    :root {
+      --bg: #0f1117;
+      --fg: #e6e6eb;
+      --accent: #5ddcff;
     }
 
-    /* ===== Base ===== */
-    body{
-      margin:0;
-      height:100vh;
-      overflow:hidden;
+    html, body {
+      margin: 0;
+      padding: 0;
       background: var(--bg);
-      color: var(--text);
-      font-family: "Segoe UI","Inter",system-ui,sans-serif;
+      color: var(--fg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    /* ===== Animated Background ===== */
-    .bg{
-      position:fixed;
-      inset:0;
-      pointer-events:none;
-      z-index:-1;
+    header {
+      padding: 1.2rem 2rem;
+      border-bottom: 1px solid #222;
     }
 
-    /* Grid layer */
-    .bg::before{
-      content:"";
-      position:absolute;
-      inset:-20%;
-      background-image:
-        linear-gradient(var(--grid) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-      background-size:40px 40px;
-      animation: gridMove 24s linear infinite;
+    header h1 {
+      font-size: 1.2rem;
+      margin: 0;
+      font-weight: 500;
+      letter-spacing: 0.04em;
     }
 
-    /* Glow layer */
-    .bg::after{
-      content:"";
-      position:absolute;
-      inset:-20%;
-      background:
-        radial-gradient(circle at 30% 30%, var(--glow), transparent 60%),
-        radial-gradient(circle at 70% 70%, rgba(0,180,255,0.10), transparent 55%);
-      animation: glowPulse 10s ease-in-out infinite;
-      filter: blur(0.3px);
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      gap: 1.5rem;
     }
 
-    @keyframes gridMove{
-      0%   { transform: translate3d(0,0,0); }
-      100% { transform: translate3d(40px,40px,0); }
+    canvas {
+      background: #111;
+      border: 1px solid #222;
     }
 
-    @keyframes glowPulse{
-      0%,100% { opacity:0.85; }
-      50%     { opacity:1.00; }
+    .caption {
+      font-size: 0.9rem;
+      color: #aaa;
     }
 
-    /* ===== Hero ===== */
-    .hero{
-      height:100vh;
-      display:flex;
-      align-items:center;
-      padding-left:10%;
+    a.button {
+      margin-top: 1rem;
+      padding: 0.6rem 1.2rem;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
     }
 
-    .stack{
-      animation: riseIn 900ms ease-out both;
-    }
-
-    @keyframes riseIn{
-      from { opacity:0; transform: translateY(10px); }
-      to   { opacity:1; transform: translateY(0); }
-    }
-
-    h1{
-      font-size:3.2rem;
-      letter-spacing:0.05em;
-      margin:0;
-    }
-
-    p{
-      margin-top:0.8em;
-      font-size:1.2rem;
-      color: var(--sub);
-    }
-
-    /* ===== Footer ===== */
-    .footer{
-      position:fixed;
-      bottom:20px;
-      right:30px;
-      font-size:0.9rem;
-      color: var(--footer);
-    }
-
-    /* ===== Accessibility (Pro-style) ===== */
-    @media (prefers-reduced-motion: reduce){
-      .bg::before,
-      .bg::after,
-      .stack{
-        animation:none !important;
-      }
+    a.button:hover {
+      background: var(--accent);
+      color: #000;
     }
   </style>
 </head>
 
 <body>
-  <!-- Background -->
-  <div class="bg"></div>
+  <header>
+    <h1>Animation Test / Motion Visualization</h1>
+  </header>
 
-  <!-- Hero -->
-  <section class="hero">
-    <div class="stack">
-      <h1>VGID Characteristics</h1>
-      <p>SPICE Simulation × Python Visualization</p>
+  <main>
+    <canvas id="canvas" width="640" height="240"></canvas>
+
+    <div class="caption">
+      Harmonic motion rendered with Canvas & requestAnimationFrame
     </div>
-  </section>
 
-  <!-- Footer -->
-  <div class="footer">
-    Samizo-AITL / vgid_test
-  </div>
+    <a class="button" href="./docs/">Documentation →</a>
+  </main>
+
+  <script>
+    /**
+     * Professional minimal animation demo
+     * - Deterministic motion
+     * - No external dependencies
+     * - rAF timing
+     */
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    let t = 0;
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // axis
+      ctx.strokeStyle = "#333";
+      ctx.beginPath();
+      ctx.moveTo(0, H / 2);
+      ctx.lineTo(W, H / 2);
+      ctx.stroke();
+
+      // harmonic motion
+      const x = W / 2 + Math.sin(t) * 200;
+      const y = H / 2;
+
+      ctx.fillStyle = "#5ddcff";
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      t += 0.03;
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+  </script>
 </body>
 </html>
