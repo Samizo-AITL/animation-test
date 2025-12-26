@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Control Playground – Time Response</title>
+
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      background: #000;
+      color: #e6edf3;
+      font-family: system-ui, Segoe UI, Meiryo, sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+
+<body>
+<canvas id="c"></canvas>
+
+<script>
+/* ================= Canvas ================= */
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+
+function resize(){
+  c.width  = window.innerWidth;
+  c.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ================= Fixed PID ================= */
+const Kp = 0.55;
+const Ki = 0.015;
+const Kd = 0.18;
+
+/* ================= System ================= */
+const YMAX = 300;
+let y = 60;
+let v = 0;
+let setpoint = 250;
+
+/* ================= Internal ================= */
+let integ = 0;
+let prevErr = 0;
+let t = 0;
+
+/* ================= Colored Disturbance ================= */
+let redNoise = 0;
+let drift = 0;
+let impulse = 0;
+
+/* ================= History ================= */
+const HIST = 800;
+let yHist = [];
+let sHist = [];
+let dHist = [];
+
+/* ================= Utils ================= */
+const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
+const rand  = (a,b)=>a+Math.random()*(b-a);
+
+/* ================= Controls ================= */
+window.addEventListener("keydown", e=>{
+  if(e.key === " ") {
+    impulse += (Math.random() - 0.5) * 800; // 外乱注入
+  }
+  if(e.key.toLowerCase() === "r") {
+    reset();
+  }
+});
+
+/* ================= Reset ================= */
+function reset(){
+  y = 60;
+  v = 0;
+  setpoint = 250;
+  integ = 0;
+  prevErr = 0;
+  redNoise = 0;
+  drift = 0;
+  impulse = 0;
+  t = 0;
+  yHist = [];
+  sHist = [];
+  dHist = [];
+}
+reset();
+
+/* ================= Disturbance AI ================= */
+let jumpTimer = rand(1.0, 2.0);
+
+function disturbanceAI(err, dt){
+  // 赤色ノイズ（低周波）
+  redNoise += (Math.random() - 0.5) * 3.0;
+  redNoise *= 0.98;
+
+  // 超低周波ドリフト
+  drift += rand(-0.2, 0.2) * dt * 6;
+  drift = clamp(drift, -30, 30);
+
+  // 状態依存（近づくほど邪魔）
+  const near = 1 / (1 + Math.abs(err) / 14);
+  const intent = 34 * near * (err >= 0 ? 1 : -1);
+
+  impulse *= 0.9;
+
+  return redNoise + drift + intent + impulse;
+}
+
+/* ================= Setpoint Betrayal ================= */
+function updateSetpoint(dt){
+  jumpTimer -= dt;
+  if(jumpTimer <= 0){
+    setpoint = clamp(setpoint + rand(-120, 120), 60, 280);
+    jumpTimer = rand(0.8, 2.0);
+  }
+}
+
+/* ================= Loop ================= */
+let last = performance.now();
+function loop(now){
+  const dt = clamp((now - last) / 1000, 0.001, 0.033);
+  last = now;
+  t += dt;
+
+  updateSetpoint(dt);
+
+  // センサ遅れ（一次）
+  let yMeas = y;
+  yMeas += (y - yMeas) * 0.15;
+
+  const err = setpoint - yMeas;
+
+  integ = clamp(integ + err * dt, -800, 800);
+  const deriv = (err - prevErr) / dt;
+  prevErr = err;
+
+  // 入力飽和
+  const u = clamp(Kp*err + Ki*integ + Kd*deriv, -60, 60);
+
+  const d = disturbanceAI(err, dt);
+
+  v += (u + d) * dt;
+  v *= 0.97;
+  y += v;
+
+  yHist.push(y);
+  sHist.push(setpoint);
+  dHist.push(d);
+
+  if(yHist.length > HIST){
+    yHist.shift();
+    sHist.shift();
+    dHist.shift();
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ================= Draw ================= */
+function drawSeries(arr, min, max, col){
+  ctx.strokeStyle = col;
+  ctx.beginPath();
+  arr.forEach((v,i)=>{
+    const x = i * (c.width / (HIST - 1));
+    const y = c.height - (v - min) / (max - min) * c.height;
+    i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+}
+
+function draw(){
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0,0,c.width,c.height);
+
+  ctx.strokeStyle = "#222";
+  ctx.strokeRect(0,0,c.width,c.height);
+
+  // setpoint(t)
+  drawSeries(sHist, 0, YMAX, "#0f0");
+
+  // y(t)
+  drawSeries(yHist, 0, YMAX, "#0ff");
+
+  // disturbance(t)
+  drawSeries(dHist.map(v=>clamp(v,-80,80)), -80, 80, "#f80");
+
+  ctx.fillStyle = "#aaa";
+  ctx.font = "12px monospace";
+  ctx.fillText("setpoint(t)", 10, 14);
+  ctx.fillText("y(t)", 110, 14);
+  ctx.fillText("disturbance(t)", 160, 14);
+  ctx.fillText("SPACE: disturbance   R: reset", 10, 30);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
