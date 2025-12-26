@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>animation-test</title>
+  <title>Control Playground</title>
 
   <style>
     :root{color-scheme:dark;}
@@ -18,18 +18,17 @@
       padding:16px 18px;
       border-bottom:1px solid #223044;
       display:flex;
-      gap:12px;
       align-items:center;
+      gap:12px;
     }
     header h1{
       margin:0;
       font-size:18px;
       font-weight:700;
+      letter-spacing:0.02em;
     }
     header .right{
       margin-left:auto;
-      display:flex;
-      gap:8px;
     }
 
     .btn{
@@ -45,100 +44,34 @@
     .btn:hover{background:#162033;}
 
     main{
-      display:grid;
-      grid-template-columns:280px 1fr;
-      min-height:calc(100vh - 56px);
+      height:calc(100vh - 56px);
     }
 
-    nav{
-      border-right:1px solid #223044;
-      padding:14px;
-    }
-    nav a{
-      display:block;
-      padding:12px;
-      margin:8px 0;
-      border:1px solid #223044;
-      border-radius:12px;
-      text-decoration:none;
-      color:#e6edf3;
-      font-weight:600;
-    }
-    nav a small{
-      display:block;
-      opacity:.6;
-      font-weight:400;
-      margin-top:4px;
-    }
-    nav a:hover{background:#0f1722;}
-
-    .viewer{
-      position:relative;
-    }
     iframe{
-      position:absolute;
-      inset:0;
       width:100%;
       height:100%;
       border:0;
       background:#000;
-    }
-
-    .hint{
-      margin-top:14px;
-      font-size:12px;
-      opacity:.65;
-      line-height:1.6;
+      display:block;
     }
   </style>
 </head>
 
 <body>
   <header>
-    <h1>animation-test</h1>
+    <h1>Control Playground</h1>
 
     <div class="right">
       <!-- docs/index.md -->
       <a class="btn" href="docs/" target="_blank">
-        📘 index.md
+        📘 Docs
       </a>
     </div>
   </header>
 
   <main>
-    <nav>
-      <!-- ★ Playground を iframe 表示に統一 -->
-      <a href="playground.html" target="view">
-        PLAYGROUND
-        <small>HTML / JS / Canvas を即実行</small>
-      </a>
-
-      <a href="galaxy.html" target="view">
-        GALAXY 10^6
-        <small>fragment shader / spiral</small>
-      </a>
-
-      <a href="noise.html" target="view">
-        NOISE
-        <small>scrolling noise / interference</small>
-      </a>
-
-      <a href="wave.html" target="view">
-        WAVE
-        <small>2D wave / ripple</small>
-      </a>
-
-      <div class="hint">
-        ・左メニューで表示切替<br>
-        ・すべて iframe 内で実行<br>
-        ・Playground は貼り付け実験用
-      </div>
-    </nav>
-
-    <section class="viewer">
-      <!-- 初期表示 -->
-      <iframe name="view" src="galaxy.html"></iframe>
-    </section>
+    <!-- 制御デモのみ表示 -->
+    <iframe src="index_control.html"></iframe>
   </main>
 </body>
 </html>
